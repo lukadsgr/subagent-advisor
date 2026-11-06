@@ -14,7 +14,7 @@ No início de uma tarefa, o Claude informa ao mod quantas etapas ela tem, quanta
 | Amarelo | Subagentes: você decide | Paga mais para terminar antes, ou a tarefa é arriscada e ganha uma revisão independente |
 | Vermelho | Subagentes não recomendados | Dividir custaria mais sem ganho que compense |
 
-A faixa só aparece quando há duas ou mais etapas que podem rodar ao mesmo tempo. Tarefas sequenciais e de uma etapa não mostram nada. No verde e no amarelo, o Claude pergunta como você quer seguir antes de começar.
+A faixa só aparece quando há duas ou mais etapas que podem rodar ao mesmo tempo. Tarefas sequenciais e de uma etapa não mostram nada. No verde e no amarelo, o Claude espera sua escolha antes de começar: aperte **Sem subagentes** ou **Com subagentes** na faixa e o trabalho segue sozinho, sem precisar digitar.
 
 ## Instalar
 
@@ -38,11 +38,12 @@ Para usar subagentes quando a faixa recomendar, o mod sugere o `/savvy-flow:savv
 
 São estimativas, não medições nem cobrança.
 
-- As constantes (como 20 segundos por turno e 4 turnos por etapa) são suposições, e podem ser ajustadas em `hooks/estimate.ts`.
+- Cada número é uma faixa: do caso típico até 3 vezes ele, a distância medida entre a mediana e o percentil 90 de tarefas reais.
+- O tamanho da etapa pesa mais que tudo. `small` e `medium` vêm de 215 tarefas reais sem subagentes; `large` vem de apenas 3 subagentes de uma sessão, então é o dado mais fraco. Os valores ficam em `hooks/estimate.ts`.
 - Os dólares usam preços de tabela de 10/10/2026. Em uma assinatura, leia como custo equivalente.
-- Tokens somam entrada nova, saída e 10% das releituras em cache.
+- Tokens somam tudo, inclusive releituras em cache, como no painel Agents.
 - O veredito é decidido pelo custo em dólares, porque releituras em cache custam pouco.
-- A linha "Real até agora" mostra o gasto medido da tarefa, para comparar com a estimativa.
+- A linha "Real" mostra o gasto medido da tarefa, incluindo a sessão principal. Por isso pode passar do custo do painel Agents, que soma só os subagentes.
 
 ## Licença
 

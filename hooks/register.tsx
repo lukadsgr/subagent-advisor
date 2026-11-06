@@ -1,9 +1,10 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Assessment, Plan } from '../types'
+import type { Assessment, Choice, Plan } from '../types'
 import { bandSvg, COLOR, CREDIT, heightOf, HEADLINE } from './band'
-import { estimate, formatDelta, formatTime, formatTokens, formatUsd, spentOn } from './estimate'
+import { estimate, formatDelta, spentOn, STEP, timeRange, tokenRange, usdRange } from './estimate'
+import type { StepSize } from './estimate'
 
 const TOOL = 'mcp__subagent-advisor__assess'
 const NOTHING_SPENT = { tokens: 0, usd: 0, workers: 0 }
@@ -13,6 +14,14 @@ const spending = atom({ plugin: 'subagent-advisor', key: 'spending' } as const, 
 const mainContext = atom({ plugin: 'subagent-advisor', key: 'mainContext' } as const, 0)
 const mainModel = atom({ plugin: 'subagent-advisor', key: 'mainModel' } as const, '')
 const isHidden = atom({ plugin: 'subagent-advisor', key: 'isHidden' } as const, false)
+const choice = atom({ plugin: 'subagent-advisor', key: 'choice' } as const, null)
+
+const CHOICE_PROMPT: Record<Choice, string> = {
+  solo: 'Siga sem subagentes, aqui nesta sessão.',
+  delegated: 'Siga com subagentes: use /savvy-flow:savvy-flow se estiver disponível; se não, delegue com a ferramenta Agent.',
+}
+
+const CHOICE_LABEL: Record<Choice, string> = { solo: 'Seguindo sem subagentes', delegated: 'Seguindo com subagentes' }
 
 const GUIDANCE =
   'At the very start of any task that involves editing files or running more than one command, ' +
@@ -27,9 +36,12 @@ type AssessInput = {
   independent?: number
   readTokens?: number
   isRisky?: boolean
+  size?: string
 }
 
-const planText = (p: Plan): string => `~${formatTokens(p.tokens)} tokens, ~${formatUsd(p.usd)}, ~${formatTime(p.seconds)}`
+const planText = (p: Plan): string => `${tokenRange(p)} tokens, ${usdRange(p)}, ${timeRange(p)}`
+
+const sizeOf = (size: string | undefined): StepSize => (size !== undefined && size in STEP ? (size as StepSize) : 'medium')
 
 const compare = (a: Assessment): string =>
   `Sem subagentes: ${planText(a.solo)}. Com subagentes: ${planText(a.delegated)}. ` +
@@ -56,14 +68,21 @@ export const register: Register = on => {
           readTokens: {
             type: 'integer',
             minimum: 0,
-            description: 'Tokens of files and logs the task must read: about 3000 per ordinary source file, or 300 per KB.',
+            description: 'Tokens of everything the task must read, web pages and research included: about 3000 per ordinary source file, or 300 per KB.',
+          },
+          size: {
+            type: 'string',
+            enum: ['small', 'medium', 'large'],
+            description:
+              'How big a typical step is. small: a quick edit or check. medium: a change across a few files. ' +
+              'large: research, a whole feature or anything open-ended. When unsure, pick the larger one.',
           },
           isRisky: {
             type: 'boolean',
             description: 'True when a mistake is costly, such as deleting data, so an independent review is worth paying for.',
           },
         },
-        required: ['title', 'steps', 'independent', 'readTokens'],
+        required: ['title', 'steps', 'independent', 'readTokens', 'size'],
       },
       isDeferred: false,
     })
@@ -86,11 +105,13 @@ export const register: Register = on => {
       independent: input.independent ?? 1,
       readTokens: input.readTokens ?? 0,
       isRisky: input.isRisky === true,
+      size: sizeOf(input.size),
       context: await read($, mainContext),
       model: await read($, mainModel),
     })
 
     await update($, spending, () => NOTHING_SPENT)
+    await update($, choice, () => null)
     if (!result.isShown) {
       await update($, assessment, () => null)
       return { result: 'No steps can run at the same time, so nothing is shown. Go on with the task; no need to mention this.' }
@@ -110,7 +131,7 @@ export const register: Register = on => {
     const action =
       a.verdict === 'skip'
         ? 'Go on with the task; no need to mention this.'
-        : 'Ask: tell the user, and wait for them to choose between going on here and running /savvy-flow:savvy-flow.'
+        : 'Ask: tell the user, then end your turn and wait. They choose with the buttons on the band, which send their answer, or by replying.'
     return { result: `${HEADLINE[a.verdict]}. ${a.reason} ${compare(a)} ${action}` }
   })
 
@@ -150,7 +171,26 @@ export const register: Register = on => {
     const ui = $.ui.resolve(e)
     const { Box, Text, Button } = ui
     const spent = await read($, spending)
+    const chosen = await read($, choice)
     const hide = <Button key="advisor-hide" label="✕" plain role="dismiss" onPress={() => update($, isHidden, () => true)} />
+
+    const choose = async (picked: Choice): Promise<void> => {
+      if ((await read($, choice)) !== null) return
+      await update($, choice, () => picked)
+      await $.prompt.submit({ text: CHOICE_PROMPT[picked], asUser: true })
+    }
+
+    // Only a verdict the session waits on takes an answer: on `skip` it is already working.
+    const best: Choice = a.verdict === 'use' ? 'delegated' : 'solo'
+    const buttons =
+      chosen !== null ? (
+        <Text dimColor>{CHOICE_LABEL[chosen]}</Text>
+      ) : a.verdict === 'skip' ? null : (
+        <Box flexDirection="row" gap={1}>
+          <Button key="advisor-solo" label="Sem subagentes" variant={best === 'solo' ? 'primary' : 'secondary'} onPress={() => choose('solo')} />
+          <Button key="advisor-delegated" label="Com subagentes" variant={best === 'delegated' ? 'primary' : 'secondary'} onPress={() => choose('delegated')} />
+        </Box>
+      )
 
     // The terminal's table holds an `Svg` that draws nothing: test the surface too.
     if (e.surface !== 'terminal' && 'Svg' in ui) {
@@ -162,6 +202,7 @@ export const register: Register = on => {
             <Svg source={bandSvg(a, spent, width)} alt={`${HEADLINE[a.verdict]}. ${a.reason} ${compare(a)}`} width={width} height={heightOf(width)} />
             {hide}
           </Box>
+          {buttons}
           {below}
         </Box>
       )
@@ -184,6 +225,7 @@ export const register: Register = on => {
         </Box>
         <Text dimColor>{a.reason}</Text>
         <Text dimColor>{CREDIT}</Text>
+        {buttons}
         {below}
       </Box>
     )

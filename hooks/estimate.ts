@@ -1,21 +1,32 @@
 import type { Plan, Verdict } from '../types'
 
-// Every number here is an assumption to tune, not a measurement.
-// "Tokens" are effective tokens: new input + output + 10% of cached re-reads,
-// because a cached re-read costs far less than a new token.
+// Measured on 2026-11-06 from real transcripts, not guessed:
+// `small` is the median of 215 solo tasks with a plan, `medium` their 90th percentile,
+// `large` the subagents of one real session (only 3, so the weakest of the three).
+export type StepSize = 'small' | 'medium' | 'large'
+
+type Step = { turns: number; fresh: number; output: number; secondsPerTurn: number }
+
+export const STEP: Record<StepSize, Step> = {
+  small: { turns: 3.5, fresh: 8000, output: 3500, secondsPerTurn: 12 },
+  medium: { turns: 9, fresh: 30000, output: 10000, secondsPerTurn: 20 },
+  large: { turns: 20, fresh: 190000, output: 65000, secondsPerTurn: 35 },
+}
+
 export const ASSUMED = {
-  turnsPerStep: 4,
-  secondsPerTurn: 20,
-  outputPerStep: 1500,
   defaultContext: 25000,
-  cacheWeight: 0.1,
-  workerStartTokens: 8000,
+  // A subagent opens with the system prompt and every tool: 62-64 mil in all 3 measured.
+  workerStartTokens: 63000,
   workerStartSeconds: 15,
   briefTokens: 1000,
   summaryTokens: 800,
   rereadOverlap: 1.2,
   mainTurnsPerWorker: 2,
   mainTurnSeconds: 15,
+  // The context stops growing here: past it the session compacts.
+  contextCap: 400000,
+  // Real tasks reached about 3x the typical one (90th percentile over the median).
+  highFactor: 3,
   heavyContext: 120000,
   heavyRead: 30000,
 }
@@ -49,7 +60,7 @@ export type Usage = {
 export const spentOn = (model: string, u: Usage): { tokens: number; usd: number } => {
   const [input, output, read, write] = ratesOf(model)
   return {
-    tokens: u.input_tokens + u.output_tokens + u.cache_creation_input_tokens + ASSUMED.cacheWeight * u.cache_read_input_tokens,
+    tokens: u.input_tokens + u.output_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens,
     usd:
       (u.input_tokens * input +
         u.output_tokens * output +
@@ -64,6 +75,7 @@ export type Task = {
   independent: number
   readTokens: number
   isRisky: boolean
+  size: StepSize
   context: number
   model: string
 }
@@ -81,49 +93,56 @@ type Work = { fresh: number; output: number; rereads: number }
 
 const A = ASSUMED
 
-const tokensOf = (w: Work): number => w.fresh + w.output + A.cacheWeight * w.rereads
+// Every token counts, cached re-reads included, so the number matches the agents panel.
+const tokensOf = (w: Work): number => w.fresh + w.output + w.rereads
+
+const contextOf = (tokens: number): number => Math.min(tokens, A.contextCap)
 
 const usdOf = (w: Work, model: string): number => {
   const [, output, read, write] = ratesOf(model)
   return (w.fresh * write + w.output * output + w.rereads * read) / 1e6
 }
 
+const plan = (tokens: number, usd: number, seconds: number): Plan => ({
+  tokens: Math.round(tokens),
+  usd,
+  seconds,
+  tokensHigh: Math.round(tokens * A.highFactor),
+  usdHigh: usd * A.highFactor,
+  secondsHigh: seconds * A.highFactor,
+})
+
 const solo = (t: Task): Plan => {
-  const added = t.readTokens + t.steps * A.outputPerStep
-  const turns = t.steps * A.turnsPerStep
-  const work: Work = {
-    fresh: t.readTokens,
-    output: t.steps * A.outputPerStep,
-    rereads: turns * (t.context + added / 2),
-  }
-  return { tokens: Math.round(tokensOf(work)), usd: usdOf(work, t.model), seconds: turns * A.secondsPerTurn }
+  const step = STEP[t.size]
+  const fresh = Math.max(t.steps * step.fresh, t.readTokens)
+  const output = t.steps * step.output
+  const turns = t.steps * step.turns
+  const work: Work = { fresh, output, rereads: turns * contextOf(t.context + (fresh + output) / 2) }
+  return plan(tokensOf(work), usdOf(work, t.model), turns * step.secondsPerTurn)
 }
 
 const delegated = (t: Task): Plan => {
-  const read = (t.readTokens * A.rereadOverlap) / t.steps
+  const step = STEP[t.size]
+  const read = Math.max(step.fresh, (t.readTokens * A.rereadOverlap) / t.steps)
   const start = A.workerStartTokens + A.briefTokens
   const worker: Work = {
     fresh: start + read,
-    output: A.outputPerStep,
-    rereads: A.turnsPerStep * (start + (read + A.outputPerStep) / 2),
+    output: step.output,
+    rereads: step.turns * contextOf(start + (read + step.output) / 2),
   }
 
   // The main session writes each brief, then reads the summary and the change.
-  const added = t.steps * (A.briefTokens + A.summaryTokens + A.outputPerStep)
+  const added = t.steps * (A.briefTokens + A.summaryTokens + step.output)
   const main: Work = {
-    fresh: t.steps * (A.summaryTokens + A.outputPerStep),
+    fresh: t.steps * (A.summaryTokens + step.output),
     output: t.steps * A.briefTokens,
-    rereads: A.mainTurnsPerWorker * t.steps * (t.context + added / 2),
+    rereads: A.mainTurnsPerWorker * t.steps * contextOf(t.context + added / 2),
   }
 
   const waves = Math.ceil(t.steps / Math.min(t.independent, t.steps))
-  const wave = A.workerStartSeconds + A.turnsPerStep * A.secondsPerTurn
+  const wave = A.workerStartSeconds + step.turns * step.secondsPerTurn
   const review = t.steps * A.mainTurnsPerWorker * A.mainTurnSeconds
-  return {
-    tokens: Math.round(t.steps * tokensOf(worker) + tokensOf(main)),
-    usd: t.steps * usdOf(worker, t.model) + usdOf(main, t.model),
-    seconds: waves * wave + review,
-  }
+  return plan(t.steps * tokensOf(worker) + tokensOf(main), t.steps * usdOf(worker, t.model) + usdOf(main, t.model), waves * wave + review)
 }
 
 const saved = (without: number, withAgents: number): number => (without - withAgents) / without
@@ -139,7 +158,7 @@ const judge = (t: Task, a: Plan, b: Plan): Pick<Estimate, 'verdict' | 'reason'> 
   // Judged in dollars: cached re-reads count little there, so tokens alone flatter delegating.
   const cost = saved(a.usd, b.usd)
   const time = saved(a.seconds, b.seconds)
-  const peak = t.context + t.readTokens + t.steps * A.outputPerStep
+  const peak = t.context + t.readTokens + t.steps * STEP[t.size].output
   // A full session alone is no reason to delegate: the task itself must read a lot.
   const readsALot = t.readTokens >= A.heavyRead
   const together = Math.min(t.independent, t.steps)
@@ -186,6 +205,18 @@ export const formatTime = (seconds: number): string =>
 
 export const formatUsd = (usd: number): string =>
   usd > 0 && usd < 0.01 ? '<$0,01' : `$${usd.toFixed(2).replace('.', ',')}`
+
+const range = (low: string, high: string): string => (low === high ? low : `${low}–${high}`)
+
+export const tokenRange = (p: Plan): string => range(formatTokens(p.tokens), formatTokens(p.tokensHigh))
+
+export const usdRange = (p: Plan): string => range(formatUsd(p.usd), formatUsd(p.usdHigh))
+
+export const timeRange = (p: Plan): string => {
+  const low = formatTime(p.seconds)
+  const high = formatTime(p.secondsHigh)
+  return low.endsWith(' min') && high.endsWith(' min') ? range(low.replace(' min', ''), high) : range(low, high)
+}
 
 // How the delegated plan compares with the solo one: "+44%" costs more.
 export function formatDelta(without: number, withAgents: number): string {

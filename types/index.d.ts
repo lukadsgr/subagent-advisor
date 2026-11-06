@@ -4,7 +4,12 @@ export type Plan = {
   tokens: number
   usd: number
   seconds: number
+  tokensHigh: number
+  usdHigh: number
+  secondsHigh: number
 }
+
+export type Choice = 'solo' | 'delegated'
 
 export type Assessment = {
   title: string
@@ -28,6 +33,7 @@ declare module 'claude-code' {
       mainContext: number
       mainModel: string
       isHidden: boolean
+      choice: Choice | null
     }
   }
 }

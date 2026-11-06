@@ -1,5 +1,5 @@
 import type { Assessment, Plan, Spending, Verdict } from '../types'
-import { formatTime, formatTokens, formatUsd } from './estimate'
+import { formatTokens, formatUsd, timeRange, tokenRange, usdRange } from './estimate'
 
 export const HEADLINE: Record<Verdict, string> = {
   use: 'Subagentes recomendados',
@@ -14,12 +14,12 @@ export const CREDIT = 'Created by LUKADSGR'
 const FONT = "-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif"
 const CELL = 4
 const PAD = 12
-const CARD_W = 158
+const CARD_W = 196
 const CARD_H = 74
 const GAP = 8
 const LEFT_H = 92
 // Below this the two cards leave the text no room, so they move under it.
-const NARROW = 640
+const NARROW = 720
 
 export const heightOf = (W: number): number => (W < NARROW ? LEFT_H + CARD_H + GAP + 4 : LEFT_H)
 
@@ -82,9 +82,9 @@ const card = (x: number, y: number, label: string, p: Plan, color: string, isBes
 <g transform="translate(${x},${y})">
 <rect class="sa-card" width="${CARD_W}" height="${CARD_H}" rx="8"${isBest ? ` stroke="${color}" stroke-width="2"` : ''}/>
 <text class="sa-t" x="12" y="19" font-family="${FONT}" font-size="11.5" font-weight="700" letter-spacing="0.4">${label}</text>
-<text class="sa-t" x="12" y="41" font-family="${FONT}" font-size="17" font-weight="700">${xml(formatTokens(p.tokens))} tokens</text>
-<text fill="${color}" x="12" y="63" font-family="${FONT}" font-size="17" font-weight="700">${xml(formatUsd(p.usd))}</text>
-<text class="sa-m" x="${CARD_W - 12}" y="63" text-anchor="end" font-family="${FONT}" font-size="12">~${xml(formatTime(p.seconds))}</text>
+<text class="sa-t" x="12" y="41" font-family="${FONT}" font-size="15" font-weight="700">${xml(tokenRange(p))} tokens</text>
+<text fill="${color}" x="12" y="63" font-family="${FONT}" font-size="15" font-weight="700">${xml(usdRange(p))}</text>
+<text class="sa-m" x="${CARD_W - 12}" y="63" text-anchor="end" font-family="${FONT}" font-size="12">${xml(timeRange(p))}</text>
 </g>`
 
 export const bandSvg = (a: Assessment, spent: Spending, W: number): string => {
@@ -100,7 +100,7 @@ export const bandSvg = (a: Assessment, spent: Spending, W: number): string => {
   const headlineW = widthOf(HEADLINE[a.verdict], 15)
   const title = fit(a.title, 12, Math.max(0, textW - headlineW - 12))
   const reason = wrap(a.reason, 12.5, textW, 2)
-  const real = `Real até agora: ${formatTokens(spent.tokens)} tokens · ${formatUsd(spent.usd)} · ${spent.workers} subagentes`
+  const real = `Real: ${formatTokens(spent.tokens)} · ${formatUsd(spent.usd)} · ${spent.workers} subag.`
   const creditW = widthOf(CREDIT, 10)
   const [g0, g1, g2, g3] = dots(W, H)
 
