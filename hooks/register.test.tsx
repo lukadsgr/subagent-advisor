@@ -186,3 +186,73 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 }
+
+const assessed = async ($: never, on: never, input: object): Promise<void> => {
+  const engine = $ as any
+  const hook = on as any
+  hook('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
+  hook('tool.register', () => ({ value: undefined }))
+  hook('ui.toast', () => ({ value: undefined }))
+  hook('prompt.submit', (_: unknown, e: { text: string }) => ({ text: e.text }))
+  hook('ui.render', ($$: any, e: any) => {
+    const { Text } = $$.ui.resolve(e)
+
+    return <Text>engine</Text>
+  })
+  await engine.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await engine.tool.call({ tool: 'mcp__subagent-advisor__assess', title: 'Telas', steps: 4, independent: 4, readTokens: 100000, ...input })
+}
+
+const typed = (text: string, more: object = {}) => ({ text, wait: false, origin: { kind: 'sdk' }, ...more }) as never
+
+test('a typed reply answers the band and takes the buttons away, then the next task clears it', async ($, on) => {
+  await assessed($ as never, on as never, { size: 'large', isRisky: true })
+
+  await $.prompt.submit(typed('sem subagentes'))
+  const answered = await $.ui.mount({ ...BAND, surface: 'terminal' } as never)
+  expect((await answered.find({ type: 'Text', text: /Respondido por mensagem/ })) !== undefined).toBe(true)
+  await answered.unmount()
+
+  await $.prompt.submit(typed('outra tarefa'))
+  const next = await $.ui.mount({ ...BAND, surface: 'terminal' } as never)
+  expect(await next.find({ type: 'Text', text: /Subagentes/ })).toBe(undefined)
+  await next.unmount()
+})
+
+test('a band the session does not wait on clears on the next task', async ($, on) => {
+  await assessed($ as never, on as never, { readTokens: 5000, size: 'small' })
+
+  await $.prompt.submit(typed('outra tarefa'))
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' } as never)
+  expect(await ui.find({ type: 'Text', text: /Subagentes/ })).toBe(undefined)
+  await ui.unmount()
+})
+
+test('a message typed over a running turn leaves the band alone', async ($, on) => {
+  await assessed($ as never, on as never, { size: 'large', isRisky: true })
+
+  await $.prompt.submit(typed('uma correção', { turnId: 't1' }))
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' } as never)
+  expect(await ui.find({ type: 'Text', text: /Respondido por mensagem/ })).toBe(undefined)
+  expect((await ui.find({ type: 'Text', text: /Subagentes/ })) !== undefined).toBe(true)
+  await ui.unmount()
+})
+
+test('a background notification leaves the band alone', async ($, on) => {
+  await assessed($ as never, on as never, { size: 'large', isRisky: true })
+
+  await $.prompt.submit({ text: 'tarefa concluída', wait: false, origin: { kind: 'task-notification' } } as never)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' } as never)
+  expect(await ui.find({ type: 'Text', text: /Respondido por mensagem/ })).toBe(undefined)
+  expect((await ui.find({ type: 'Text', text: /Subagentes/ })) !== undefined).toBe(true)
+  await ui.unmount()
+})
+
+test('the button press itself keeps the band and its real spend', async ($, on) => {
+  await assessed($ as never, on as never, { size: 'large', isRisky: true })
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' } as never)
+  await ui.press({ key: 'advisor-solo' })
+  expect((await ui.find({ type: 'Text', text: /Seguindo sem subagentes/ })) !== undefined).toBe(true)
+  await ui.unmount()
+})

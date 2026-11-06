@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Assessment, Choice, Plan } from '../types'
+import type { Answer, Assessment, Choice, Plan } from '../types'
 import { bandSvg, COLOR, CREDIT, heightOf, HEADLINE } from './band'
 import { estimate, formatDelta, spentOn, STEP, timeRange, tokenRange, usdRange } from './estimate'
 import type { StepSize } from './estimate'
@@ -21,7 +21,14 @@ const CHOICE_PROMPT: Record<Choice, string> = {
   delegated: 'Siga com subagentes: use /savvy-flow:savvy-flow se estiver disponível; se não, delegue com a ferramenta Agent.',
 }
 
-const CHOICE_LABEL: Record<Choice, string> = { solo: 'Seguindo sem subagentes', delegated: 'Seguindo com subagentes' }
+const ANSWER_LABEL: Record<Answer, string> = {
+  solo: 'Seguindo sem subagentes',
+  delegated: 'Seguindo com subagentes',
+  typed: 'Respondido por mensagem',
+}
+
+// Where the person's own words come from: the desktop app reaches the engine as `sdk`.
+const PERSON = ['composer', 'bridge', 'sdk']
 
 // Only work that could run in parallel ever shows a band, so assessing anything else spends a turn on nothing.
 const GUIDANCE =
@@ -138,6 +145,24 @@ export const register: Register = on => {
     return { result: `${HEADLINE[a.verdict]}. ${a.reason} ${compare(a)} ${action}` }
   })
 
+  // Sequential work no longer calls `assess`, so nothing else would clear a finished task's band,
+  // and a stale button would answer the wrong task. A message typed over a running turn is the same task.
+  on('prompt.submit', async ($, e, next) => {
+    if (!PERSON.includes(e.origin.kind) || e.turnId !== undefined || e.isMeta) return next(e)
+
+    const a = await read($, assessment)
+    if (a === null) return next(e)
+
+    if (a.verdict !== 'skip' && (await read($, choice)) === null) {
+      await update($, choice, () => 'typed')
+      return next(e)
+    }
+    await update($, assessment, () => null)
+    await update($, spending, () => NOTHING_SPENT)
+    await update($, choice, () => null)
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
   on('agent.spawn', async ($, e, next) => {
     const started = await next(e)
     if (started.deny === undefined) await update($, spending, s => ({ ...s, workers: s.workers + 1 }))
@@ -187,7 +212,7 @@ export const register: Register = on => {
     const best: Choice = a.verdict === 'use' ? 'delegated' : 'solo'
     const buttons =
       chosen !== null ? (
-        <Text dimColor>{CHOICE_LABEL[chosen]}</Text>
+        <Text dimColor>{ANSWER_LABEL[chosen]}</Text>
       ) : a.verdict === 'skip' ? null : (
         <Box flexDirection="row" gap={1}>
           <Button key="advisor-solo" label="Sem subagentes" variant={best === 'solo' ? 'primary' : 'secondary'} onPress={() => choose('solo')} />

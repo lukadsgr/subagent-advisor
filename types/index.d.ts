@@ -11,6 +11,9 @@ export type Plan = {
 
 export type Choice = 'solo' | 'delegated'
 
+// `typed`: the person answered with a message instead of a button.
+export type Answer = Choice | 'typed'
+
 export type Assessment = {
   title: string
   verdict: Verdict
@@ -33,7 +36,7 @@ declare module 'claude-code' {
       mainContext: number
       mainModel: string
       isHidden: boolean
-      choice: Choice | null
+      choice: Answer | null
     }
   }
 }

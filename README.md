@@ -14,7 +14,7 @@ No início de uma tarefa que já se divide em duas ou mais etapas capazes de rod
 | Amarelo | Subagentes: você decide | Paga mais para terminar antes, ou a tarefa é arriscada e ganha uma revisão independente |
 | Vermelho | Subagentes não recomendados | Dividir custaria mais sem ganho que compense |
 
-A faixa só aparece quando há duas ou mais etapas que podem rodar ao mesmo tempo. Tarefas sequenciais e de uma etapa não mostram nada, e nelas o Claude nem chama o mod, para não gastar um turno à toa. No verde e no amarelo, o Claude espera sua escolha antes de começar: aperte **Sem subagentes** ou **Com subagentes** na faixa e o trabalho segue sozinho, sem precisar digitar.
+A faixa só aparece quando há duas ou mais etapas que podem rodar ao mesmo tempo. Tarefas sequenciais e de uma etapa não mostram nada, e nelas o Claude nem chama o mod, para não gastar um turno à toa. No verde e no amarelo, o Claude espera sua escolha antes de começar: aperte **Sem subagentes** ou **Com subagentes** na faixa e o trabalho segue sozinho, sem precisar digitar. Responder por mensagem também vale. Quando você começa outra tarefa, a faixa da anterior some.
 
 ## Instalar
 

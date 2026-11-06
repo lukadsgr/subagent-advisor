@@ -7,7 +7,7 @@
       "name": "subagent-advisor",
       "source": "./",
       "description": "Avisa quando vale usar subagentes e estima tokens, dólares e tempo com e sem eles.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "author": { "name": "LUKADSGR", "url": "https://github.com/lukadsgr" },
       "category": "mod"
     }
