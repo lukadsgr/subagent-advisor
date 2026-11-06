@@ -1,11 +1,13 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Assessment, Plan } from '../types'
+import type { Assessment, OpenTask, Plan, TaskShape } from '../types'
 import { bandSvg, COLOR, CREDIT, heightOf, HEADLINE } from './band'
 import { estimate, formatDelta, formatTime, formatTokens, formatUsd, spentOn } from './estimate'
+import { appended, close, isWorthKeeping, records, STORE_KEY, summary } from './history'
 
 const TOOL = 'mcp__subagent-advisor__assess'
+const HISTORY_COMMAND = 'advisor-history'
 const NOTHING_SPENT = { tokens: 0, usd: 0, workers: 0 }
 
 const assessment = atom({ plugin: 'subagent-advisor', key: 'assessment' } as const, null)
@@ -13,6 +15,17 @@ const spending = atom({ plugin: 'subagent-advisor', key: 'spending' } as const, 
 const mainContext = atom({ plugin: 'subagent-advisor', key: 'mainContext' } as const, 0)
 const mainModel = atom({ plugin: 'subagent-advisor', key: 'mainModel' } as const, '')
 const isHidden = atom({ plugin: 'subagent-advisor', key: 'isHidden' } as const, false)
+const current = atom({ plugin: 'subagent-advisor', key: 'current' } as const, null)
+
+// Ends the task being measured, if any, and keeps its numbers in the store.
+const finish = async ($: Parameters<typeof read>[0]): Promise<void> => {
+  const task = await read($, current)
+  if (task === null) return
+  await update($, current, () => null)
+  const spent = await read($, spending)
+  if (!isWorthKeeping(task, spent)) return
+  await $.store.set(STORE_KEY, appended(await $.store.get(STORE_KEY), close(task, spent)))
+}
 
 const GUIDANCE =
   'At the very start of any task that involves editing files or running more than one command, ' +
@@ -67,6 +80,10 @@ export const register: Register = on => {
       },
       isDeferred: false,
     })
+    await $.command.register({
+      name: HISTORY_COMMAND,
+      description: 'Show how the measured tasks compared with their estimates. "limpar" erases them.',
+    })
     return started
   })
 
@@ -81,15 +98,18 @@ export const register: Register = on => {
     if (e.agentId) return { result: 'ignored: only the main session assesses a task' }
 
     const input = e as unknown as AssessInput
-    const result = estimate({
+    const task: TaskShape = {
       steps: input.steps ?? 1,
       independent: input.independent ?? 1,
       readTokens: input.readTokens ?? 0,
       isRisky: input.isRisky === true,
       context: await read($, mainContext),
       model: await read($, mainModel),
-    })
+    }
+    const result = estimate(task)
 
+    // A new assessment starts a new task: the one before it is done.
+    await finish($)
     await update($, spending, () => NOTHING_SPENT)
     if (!result.isShown) {
       await update($, assessment, () => null)
@@ -105,6 +125,16 @@ export const register: Register = on => {
     }
     await update($, assessment, () => a)
     await update($, isHidden, () => false)
+    const now = await $.clock.now()
+    const open: OpenTask = {
+      startedAt: now,
+      lastActiveAt: now,
+      prompts: 0,
+      task,
+      verdict: a.verdict,
+      estimate: { solo: a.solo, delegated: a.delegated },
+    }
+    await update($, current, () => open)
     if (a.verdict === 'use') $.ui.toast(`${HEADLINE.use}: ${a.title}`)
 
     const action =
@@ -134,8 +164,29 @@ export const register: Register = on => {
     if (await read($, assessment)) {
       const spent = spentOn(model, usage)
       await update($, spending, s => ({ ...s, tokens: s.tokens + spent.tokens, usd: s.usd + spent.usd }))
+      const now = await $.clock.now()
+      await update($, current, t => (t === null ? t : { ...t, lastActiveAt: now }))
     }
     return result
+  })
+
+  // Each prompt the person types while a task is measured: more of them means the work took more asking.
+  on('prompt.submit', async ($, e, next) => {
+    if (!e.isMeta && !e.command && (await read($, current))) await update($, current, t => (t === null ? t : { ...t, prompts: t.prompts + 1 }))
+    return next(e)
+  })
+
+  on('session.end', async ($, e, next) => {
+    await finish($)
+    return next(e)
+  })
+
+  on('command.run', { command: HISTORY_COMMAND }, async ($, e) => {
+    if (/^\s*(limpar|clear)\s*$/i.test(e.args)) {
+      await $.store.delete(STORE_KEY)
+      return { text: 'Histórico de tarefas medidas apagado.' }
+    }
+    return { text: summary(records(await $.store.get(STORE_KEY))) }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

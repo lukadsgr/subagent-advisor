@@ -44,6 +44,20 @@ São estimativas, não medições nem cobrança.
 - O veredito é decidido pelo custo em dólares, porque releituras em cache custam pouco.
 - A linha "Real até agora" mostra o gasto medido da tarefa, para comparar com a estimativa.
 
+## Medição das tarefas
+
+Cada tarefa avaliada é medida quando a próxima avaliação começa ou a sessão termina. O mod guarda:
+- o formato da tarefa: as etapas, quantas podem rodar ao mesmo tempo, a leitura, o risco, o contexto e o modelo;
+- o veredito;
+- a estimativa dos dois caminhos;
+- o que de fato aconteceu: se usou subagentes, os tokens, os dólares, o tempo até a última chamada ao modelo e quantos pedidos você fez no meio.
+
+São só números, guardados no armazenamento do mod neste computador. O texto das conversas nunca é guardado. O histórico fica com as últimas 500 tarefas.
+
+`/advisor-history` mostra, por caminho, a média de gasto e a mediana do real contra o estimado. `/advisor-history limpar` apaga o histórico.
+
+Esses dados são a base para calibrar as constantes de `hooks/estimate.ts` com o gasto real e, mais adiante, para um modelo de decisão que aprenda sozinho com eles.
+
 ## Licença
 
 MIT
