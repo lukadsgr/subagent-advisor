@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
-import { bandSvg } from './band'
-import { estimate } from './estimate'
+import { bandSvg, wrap } from './band'
+import { estimate, formatDelta } from './estimate'
 
 const BAND = {
   plugin: 'subagent-advisor',
@@ -58,6 +58,42 @@ test('the drawing takes the verdict color and escapes the title', () => {
   expect(svg.includes('SEM SUBAGENTES')).toBe(true)
   expect(svg.includes('$0,50')).toBe(true)
   expect(svg.includes('Created by LUKADSGR')).toBe(true)
+})
+
+test('more independent steps than steps run in one wave', () => {
+  const capped = estimate({ ...base, steps: 3, independent: 3 })
+  const over = estimate({ ...base, steps: 3, independent: 9 })
+  expect(over.delegated.seconds).toBe(capped.delegated.seconds)
+  expect(over.isShown).toBe(true)
+})
+
+test('an unknown model is priced like the default', () => {
+  const known = estimate({ ...base, model: 'claude-opus-5-5' })
+  const unknown = estimate({ ...base, model: 'some-other-model' })
+  expect(unknown.solo.usd).toBe(known.solo.usd)
+})
+
+test('a missing context falls back to the default', () => {
+  expect(estimate({ ...base, context: 0 }).solo.tokens).toBe(estimate({ ...base, context: 25000 }).solo.tokens)
+})
+
+test('a delta from zero never prints NaN', () => {
+  expect(formatDelta(0, 5)).toBe('+∞')
+  expect(formatDelta(0, 0)).toBe('0%')
+  expect(formatDelta(100, 144)).toBe('+44%')
+})
+
+test('a first word wider than the line leaves no empty line', () => {
+  const lines = wrap('Supercalifragilisticexpialidocious e mais', 12.5, 60, 2)
+  expect(lines[0] !== '').toBe(true)
+})
+
+test('two bands of the same size get different clip ids', () => {
+  const plan = { tokens: 1000, usd: 0.1, seconds: 60 }
+  const a = { title: 'x', verdict: 'use', reason: 'Motivo.', solo: plan, delegated: plan } as const
+  const id = (svg: string) => /clipPath id="([^"]+)"/.exec(svg)?.[1]
+  const none = { tokens: 0, usd: 0, workers: 0 }
+  expect(id(bandSvg(a, none, 800)) !== id(bandSvg(a, none, 800))).toBe(true)
 })
 
 test('parallel work reaches the band on every surface', async ($, on) => {

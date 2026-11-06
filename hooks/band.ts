@@ -46,7 +46,7 @@ const fit = (s: string, size: number, maxW: number): string => {
   return `${out}…`
 }
 
-const wrap = (s: string, size: number, maxW: number, maxLines: number): string[] => {
+export const wrap = (s: string, size: number, maxW: number, maxLines: number): string[] => {
   const lines: string[] = []
   let line = ''
   const words = s.split(' ')
@@ -57,7 +57,8 @@ const wrap = (s: string, size: number, maxW: number, maxLines: number): string[]
       continue
     }
     if (lines.length === maxLines - 1) return [...lines, fit(words.slice(i - (line ? line.split(' ').length : 0)).join(' '), size, maxW)]
-    lines.push(line)
+    // A first word wider than the line would otherwise leave an empty line before it.
+    if (line) lines.push(line)
     line = words[i]
   }
   return line ? [...lines, line] : lines
@@ -87,7 +88,11 @@ const card = (x: number, y: number, label: string, p: Plan, color: string, isBes
 <text class="sa-m" x="${CARD_W - 12}" y="63" text-anchor="end" font-family="${FONT}" font-size="12">~${xml(formatTime(p.seconds))}</text>
 </g>`
 
+// Each band gets its own clip id, so two bands of the same size on one page don't share one.
+let clipCount = 0
+
 export const bandSvg = (a: Assessment, spent: Spending, W: number): string => {
+  const clip = `sa-clip-${++clipCount}`
   const H = heightOf(W)
   const color = COLOR[a.verdict]
   const isNarrow = W < NARROW
@@ -114,8 +119,8 @@ export const bandSvg = (a: Assessment, spent: Spending, W: number): string => {
 @keyframes sa-tw{0%,100%{opacity:.55}50%{opacity:.2}}
 @media (prefers-reduced-motion: reduce){.sa-d0,.sa-d1,.sa-d2,.sa-d3{animation:none;opacity:.4}}
 </style>
-<defs><clipPath id="sa-clip-${W}-${H}"><rect width="${W}" height="${H}" rx="10"/></clipPath></defs>
-<g clip-path="url(#sa-clip-${W}-${H})">
+<defs><clipPath id="${clip}"><rect width="${W}" height="${H}" rx="10"/></clipPath></defs>
+<g clip-path="url(#${clip})">
 <rect class="sa-bg" width="${W}" height="${H}"/>
 <g fill="${color}"><path class="sa-d0" d="${g0}"/><path class="sa-d1" d="${g1}"/><path class="sa-d2" d="${g2}"/><path class="sa-d3" d="${g3}"/></g>
 </g>

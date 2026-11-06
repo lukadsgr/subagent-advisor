@@ -189,6 +189,7 @@ export const formatUsd = (usd: number): string =>
 
 // How the delegated plan compares with the solo one: "+44%" costs more.
 export function formatDelta(without: number, withAgents: number): string {
+  if (!(without > 0)) return withAgents > 0 ? '+∞' : '0%'
   const share = Math.round(((withAgents - without) / without) * 100)
   return `${share > 0 ? '+' : ''}${share}%`
 }
