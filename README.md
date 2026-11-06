@@ -6,7 +6,7 @@ Created by LUKADSGR.
 
 ## O que faz
 
-No início de uma tarefa, o Claude informa ao mod quantas etapas ela tem, quantas podem rodar ao mesmo tempo, quanto precisa ler e se é arriscada. O mod calcula as duas opções e mostra uma faixa acima do campo de mensagem:
+No início de uma tarefa que já se divide em duas ou mais etapas capazes de rodar ao mesmo tempo, o Claude informa ao mod quantas etapas ela tem, quantas podem rodar ao mesmo tempo, quanto precisa ler e se é arriscada. O mod calcula as duas opções e mostra uma faixa acima do campo de mensagem:
 
 | Cor | Veredito | Quando |
 | --- | --- | --- |
@@ -14,7 +14,7 @@ No início de uma tarefa, o Claude informa ao mod quantas etapas ela tem, quanta
 | Amarelo | Subagentes: você decide | Paga mais para terminar antes, ou a tarefa é arriscada e ganha uma revisão independente |
 | Vermelho | Subagentes não recomendados | Dividir custaria mais sem ganho que compense |
 
-A faixa só aparece quando há duas ou mais etapas que podem rodar ao mesmo tempo. Tarefas sequenciais e de uma etapa não mostram nada. No verde e no amarelo, o Claude pergunta como você quer seguir antes de começar.
+A faixa só aparece quando há duas ou mais etapas que podem rodar ao mesmo tempo. Tarefas sequenciais e de uma etapa não mostram nada, e nelas o Claude nem chama o mod, para não gastar um turno à toa. No verde e no amarelo, o Claude pergunta como você quer seguir antes de começar.
 
 ## Instalar
 
@@ -32,7 +32,7 @@ claude plugin install subagent-advisor --marketplace lukadsgr/subagent-advisor
 
 No app desktop, onde `/plugin` não roda: clique em + ao lado do campo de mensagem, depois em Plugins, Add marketplace com `lukadsgr/subagent-advisor` e Add plugin.
 
-Para usar subagentes quando a faixa recomendar, o mod sugere o `/savvy-flow:savvy-flow`, do [claude-kit](https://github.com/johnnyvizz/claude-kit). Ele não é obrigatório: o mod funciona sem ele.
+Para usar subagentes quando a faixa recomendar, o mod sugere o `/savvy-flow:savvy-flow`, do [claude-kit](https://github.com/johnnyvizz/claude-kit), quando ele está instalado. Ele não é obrigatório: sem ele, o Claude oferece dividir a tarefa com os próprios subagentes.
 
 ## Sobre os números
 
