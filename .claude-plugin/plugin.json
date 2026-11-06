@@ -1,8 +1,11 @@
 {
   "name": "subagent-advisor",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Avisa quando vale usar subagentes e estima tokens, dólares e tempo com e sem eles.",
-  "author": { "name": "LZKDSGR" },
+  "author": { "name": "LUKADSGR", "url": "https://github.com/lukadsgr" },
+  "homepage": "https://github.com/lukadsgr/subagent-advisor",
+  "repository": "https://github.com/lukadsgr/subagent-advisor",
   "license": "MIT",
+  "keywords": ["mod", "subagents"],
   "types": "./types/index.d.ts"
 }

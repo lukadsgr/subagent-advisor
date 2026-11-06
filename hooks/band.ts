@@ -9,7 +9,7 @@ export const HEADLINE: Record<Verdict, string> = {
 
 export const COLOR: Record<Verdict, string> = { use: '#3fb950', maybe: '#e3b341', skip: '#f85149' }
 
-export const CREDIT = 'Created by LZKDSGR'
+export const CREDIT = 'Created by LUKADSGR'
 
 const FONT = "-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif"
 const CELL = 4

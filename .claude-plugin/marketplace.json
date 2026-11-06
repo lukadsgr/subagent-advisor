@@ -1,5 +1,15 @@
 {
-  "name": "lzkdsgr-mods",
-  "owner": { "name": "LZKDSGR" },
-  "plugins": [{ "name": "subagent-advisor", "source": "./" }]
+  "name": "lukadsgr-mods",
+  "owner": { "name": "LUKADSGR", "url": "https://github.com/lukadsgr" },
+  "metadata": { "description": "Mods para o Claude Code de LUKADSGR." },
+  "plugins": [
+    {
+      "name": "subagent-advisor",
+      "source": "./",
+      "description": "Avisa quando vale usar subagentes e estima tokens, dólares e tempo com e sem eles.",
+      "version": "0.2.2",
+      "author": { "name": "LUKADSGR", "url": "https://github.com/lukadsgr" },
+      "category": "mod"
+    }
+  ]
 }

@@ -57,7 +57,7 @@ test('the drawing takes the verdict color and escapes the title', () => {
   expect(svg.includes('a&lt;b')).toBe(true)
   expect(svg.includes('SEM SUBAGENTES')).toBe(true)
   expect(svg.includes('$0,50')).toBe(true)
-  expect(svg.includes('Created by LZKDSGR')).toBe(true)
+  expect(svg.includes('Created by LUKADSGR')).toBe(true)
 })
 
 test('parallel work reaches the band on every surface', async ($, on) => {

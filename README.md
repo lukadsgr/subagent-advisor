@@ -2,7 +2,7 @@
 
 Mod para o Claude Code que avisa quando uma tarefa fica melhor com subagentes e compara tokens, dólares e tempo com e sem eles.
 
-Created by LZKDSGR.
+Created by LUKADSGR.
 
 ## O que faz
 
