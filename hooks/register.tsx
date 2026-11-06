@@ -23,10 +23,11 @@ const CHOICE_PROMPT: Record<Choice, string> = {
 
 const CHOICE_LABEL: Record<Choice, string> = { solo: 'Seguindo sem subagentes', delegated: 'Seguindo com subagentes' }
 
+// Only work that could run in parallel ever shows a band, so assessing anything else spends a turn on nothing.
 const GUIDANCE =
-  'At the very start of any task that involves editing files or running more than one command, ' +
+  'At the very start of a task you can already see splitting into two or more steps that could run at the same time, ' +
   `before doing the work, call ${TOOL} once with your honest estimate of the task. ` +
-  'Skip it for short questions and for a task you already assessed. ' +
+  'Skip it for short questions, for sequential or one-step work, and for a task you already assessed. ' +
   'When its result says to ask, tell the user the recommendation and the numbers in one or two lines, ' +
   'then wait for them to choose before starting the work.'
 
@@ -54,7 +55,7 @@ export const register: Register = on => {
       name: 'assess',
       description:
         'Estimate whether a task is better done with subagents, and show the user the tokens, dollars and time with and without them. ' +
-        'Call it once at the start of a task, before the work.',
+        'Call it once at the start of a task with two or more steps that could run at the same time, before the work.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -131,7 +132,9 @@ export const register: Register = on => {
     const action =
       a.verdict === 'skip'
         ? 'Go on with the task; no need to mention this.'
-        : 'Ask: tell the user, then end your turn and wait. They choose with the buttons on the band, which send their answer, or by replying.'
+        : // savvy-flow is optional: name it only when the session can actually run it.
+          'Ask: tell the user, then end your turn and wait. They choose with the buttons on the band, which send their answer, or by replying. ' +
+          'Offer /savvy-flow:savvy-flow for the split only if it is among your available skills; otherwise offer your own subagents.'
     return { result: `${HEADLINE[a.verdict]}. ${a.reason} ${compare(a)} ${action}` }
   })
 
