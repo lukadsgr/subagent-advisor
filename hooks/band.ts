@@ -46,7 +46,7 @@ const fit = (s: string, size: number, maxW: number): string => {
   return `${out}…`
 }
 
-const wrap = (s: string, size: number, maxW: number, maxLines: number): string[] => {
+export const wrap = (s: string, size: number, maxW: number, maxLines: number): string[] => {
   const lines: string[] = []
   let line = ''
   const words = s.split(' ')
@@ -57,7 +57,8 @@ const wrap = (s: string, size: number, maxW: number, maxLines: number): string[]
       continue
     }
     if (lines.length === maxLines - 1) return [...lines, fit(words.slice(i - (line ? line.split(' ').length : 0)).join(' '), size, maxW)]
-    lines.push(line)
+    // A first word wider than the line would otherwise leave an empty line before it.
+    if (line) lines.push(line)
     line = words[i]
   }
   return line ? [...lines, line] : lines
