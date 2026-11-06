@@ -1,0 +1,5 @@
+{
+  "name": "lzkdsgr-mods",
+  "owner": { "name": "LZKDSGR" },
+  "plugins": [{ "name": "subagent-advisor", "source": "./" }]
+}
